@@ -1,0 +1,54 @@
+package server;
+
+import dao.ProductDAO;
+import dao.SaleDAO;
+import model.Product;
+import model.Sale;
+
+import java.time.LocalDate;
+import java.util.List;
+
+public class Server {
+    private final ProductDAO productDAO = new ProductDAO();
+    private final SaleDAO saleDAO = new SaleDAO();
+
+    public void addProduct(String name,int qty,double price,String supplier,LocalDate expiry){
+        try{
+            Product p=new Product(name,qty,price,supplier,expiry);
+            productDAO.addProduct(p);
+            System.out.println("Product added: "+p);
+        }catch(Exception e){ e.printStackTrace(); }
+    }
+
+    public List<Product> viewProducts(){
+        try{return productDAO.getAll();}
+        catch(Exception e){ e.printStackTrace(); return List.of();}
+    }
+
+    public void recordSale(int productId,int qty){
+        try{
+            Product p=productDAO.findById(productId);
+            if(p==null){ System.out.println("Product not found"); return;}
+  if(p==null){ System.out.println("Product not found"); return;}
+            if(p.getQuantity()<qty){ System.out.println("Insufficient stock"); return;}
+            p.setQuantity(p.getQuantity()-qty);
+            Sale s=new Sale(productId,qty,qty*p.getPrice());
+            saleDAO.recordSale(s);
+            System.out.println("Sale recorded: Total ₹"+s.getTotalPrice());
+        }catch(Exception e){ e.printStackTrace();}
+    }
+
+    public void showLowStockAlerts(int threshold){
+        for(Product p:viewProducts()){
+            if(p.getQuantity()<=threshold) System.out.println("⚠ Low Stock: "+p);
+        }
+    }
+
+    public void showExpiryAlerts(){
+        LocalDate today=LocalDate.now();
+        for(Product p:viewProducts()){
+            if(p.getExpiryDate()!=null && !p.getExpiryDate().isAfter(today.plusDays(7)))
+                System.out.println("⚠ Expiry Alert: "+p);
+        }
+    }
+}
