@@ -1,0 +1,20 @@
+package dao;
+
+import database.DatabaseConnection;
+import model.Sale;
+
+import java.sql.Connection;
+import java.sql.PreparedStatement;
+
+public class SaleDAO {
+    public void recordSale(Sale s){
+        String sql="INSERT INTO sale(product_id,quantity,total_price) VALUES(?,?,?)";
+        try(Connection c=DatabaseConnection.getConnection();
+            PreparedStatement ps=c.prepareStatement(sql)){
+            ps.setInt(1,s.getProductId());
+            ps.setInt(2,s.getQuantity());
+            ps.setDouble(3,s.getTotalPrice());
+            ps.executeUpdate();
+        }catch(Exception e){ e.printStackTrace(); }
+    }
+}
