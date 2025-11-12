@@ -1,0 +1,225 @@
+package ui;
+
+import javafx.collections.FXCollections;
+import javafx.collections.ObservableList;
+import javafx.geometry.Insets;
+import javafx.scene.Scene;
+import javafx.scene.control.*;
+import javafx.scene.control.cell.PropertyValueFactory;
+import javafx.scene.layout.*;
+import javafx.stage.Stage;
+import model.Product;
+import server.Server;
+
+import java.time.LocalDate;
+import java.util.List;
+
+public class AdminUI extends Stage {
+    private Server server = new Server();
+    private TableView<Product> productTable = new TableView<>();
+    private ObservableList<Product> productList = FXCollections.observableArrayList();
+
+    public AdminUI() {
+        setTitle("Admin Panel");
+
+        // ===== Table Columns =====
+        TableColumn<Product,Integer> colId = new TableColumn<>("ID");
+        colId.setCellValueFactory(new PropertyValueFactory<>("id"));
+
+        TableColumn<Product,String> colName = new TableColumn<>("Name");
+        colName.setCellValueFactory(new PropertyValueFactory<>("name"));
+
+        TableColumn<Product,Integer> colQty = new TableColumn<>("Quantity");
+        colQty.setCellValueFactory(new PropertyValueFactory<>("quantity"));
+
+        TableColumn<Product,Double> colPrice = new TableColumn<>("Price");
+        colPrice.setCellValueFactory(new PropertyValueFactory<>("price"));
+
+        TableColumn<Product,String> colSupplier = new TableColumn<>("Supplier");
+        colSupplier.setCellValueFactory(new PropertyValueFactory<>("supplier"));
+
+        TableColumn<Product,LocalDate> colExpiry = new TableColumn<>("Expiry");
+        colExpiry.setCellValueFactory(new PropertyValueFactory<>("expiryDate"));
+
+        productTable.getColumns().addAll(colId, colName, colQty, colPrice, colSupplier, colExpiry);
+        productTable.setColumnResizePolicy(TableView.CONSTRAINED_RESIZE_POLICY);
+
+        // ===== Buttons =====
+        Button btnAdd = new Button("Add");
+        Button btnEdit = new Button("Edit");
+        Button btnDelete = new Button("Delete");
+        Button btnRefresh = new Button("Refresh");
+        Button btnLowStock = new Button("Low Stock Alerts");
+        Button btnExpiry = new Button("Expiry Alerts");
+        Button btnClose = new Button("Close");
+
+        HBox buttonBox = new HBox(10, btnAdd, btnEdit, btnDelete, btnRefresh, btnLowStock, btnExpiry, btnClose);
+        buttonBox.setPadding(new Insets(10));
+
+        VBox layout = new VBox(10, productTable, buttonBox);
+        layout.setPadding(new Insets(10));
+
+        Scene scene = new Scene(layout, 800, 500);
+        setScene(scene);
+
+        loadProducts();
+
+        // ===== Button Actions =====
+        btnAdd.setOnAction(e -> addProductDialog());
+        btnEdit.setOnAction(e -> editProductDialog());
+        btnDelete.setOnAction(e -> deleteSelectedProduct());
+        btnRefresh.setOnAction(e -> loadProducts());
+        btnLowStock.setOnAction(e -> showLowStockAlerts());
+        btnExpiry.setOnAction(e -> showExpiryAlerts());
+        btnClose.setOnAction(e -> close());
+    }
+
+    // ===== Load Products from Server =====
+    private void loadProducts() {
+        productList.clear();
+        List<Product> list = server.viewProducts();
+        productList.addAll(list);
+        productTable.setItems(productList);
+    }
+
+    // ===== Add Product Dialog =====
+    private void addProductDialog() {
+        Dialog<Product> dialog = new Dialog<>();
+        dialog.setTitle("Add Product");
+
+        GridPane grid = new GridPane();
+        grid.setVgap(10);
+        grid.setHgap(10);
+
+        TextField txtName = new TextField();
+        TextField txtQty = new TextField();
+        TextField txtPrice = new TextField();
+        TextField txtSupplier = new TextField();
+        TextField txtExpiry = new TextField();
+
+        grid.addRow(0, new Label("Name:"), txtName);
+        grid.addRow(1, new Label("Quantity:"), txtQty);
+        grid.addRow(2, new Label("Price:"), txtPrice);
+        grid.addRow(3, new Label("Supplier:"), txtSupplier);
+        grid.addRow(4, new Label("Expiry (yyyy-mm-dd or none):"), txtExpiry);
+
+        dialog.getDialogPane().setContent(grid);
+        ButtonType okBtn = new ButtonType("Add", ButtonBar.ButtonData.OK_DONE);
+        dialog.getDialogPane().getButtonTypes().addAll(okBtn, ButtonType.CANCEL);
+
+        dialog.setResultConverter(dialogButton -> {
+            if (dialogButton == okBtn) {
+                String name = txtName.getText();
+                int qty = Integer.parseInt(txtQty.getText());
+                double price = Double.parseDouble(txtPrice.getText());
+                String supplier = txtSupplier.getText();
+                String exp = txtExpiry.getText();
+                LocalDate expiry = exp.equalsIgnoreCase("none") ? null : LocalDate.parse(exp);
+
+                server.addProduct(name, qty, price, supplier, expiry);
+                loadProducts();
+            }
+            return null;
+        });
+
+        dialog.showAndWait();
+    }
+
+    // ===== Edit Product Dialog =====
+    private void editProductDialog() {
+        Product selected = productTable.getSelectionModel().getSelectedItem();
+        if (selected == null) {
+            showAlert("Select a product to edit!");
+            return;
+        }
+
+        Dialog<Product> dialog = new Dialog<>();
+        dialog.setTitle("Edit Product");
+
+        GridPane grid = new GridPane();
+        grid.setVgap(10);
+        grid.setHgap(10);
+
+        TextField txtName = new TextField(selected.getName());
+        TextField txtQty = new TextField(String.valueOf(selected.getQuantity()));
+        TextField txtPrice = new TextField(String.valueOf(selected.getPrice()));
+        TextField txtSupplier = new TextField(selected.getSupplier());
+        TextField txtExpiry = new TextField(selected.getExpiryDate() == null ? "none" : selected.getExpiryDate().toString());
+
+        grid.addRow(0, new Label("Name:"), txtName);
+        grid.addRow(1, new Label("Quantity:"), txtQty);
+        grid.addRow(2, new Label("Price:"), txtPrice);
+        grid.addRow(3, new Label("Supplier:"), txtSupplier);
+        grid.addRow(4, new Label("Expiry (yyyy-mm-dd or none):"), txtExpiry);
+
+        dialog.getDialogPane().setContent(grid);
+        ButtonType okBtn = new ButtonType("Update", ButtonBar.ButtonData.OK_DONE);
+        dialog.getDialogPane().getButtonTypes().addAll(okBtn, ButtonType.CANCEL);
+
+        dialog.setResultConverter(dialogButton -> {
+            if (dialogButton == okBtn) {
+                selected.setName(txtName.getText());
+                selected.setQuantity(Integer.parseInt(txtQty.getText()));
+                selected.setPrice(Double.parseDouble(txtPrice.getText()));
+                selected.setSupplier(txtSupplier.getText());
+                String exp = txtExpiry.getText();
+                selected.setExpiryDate(exp.equalsIgnoreCase("none") ? null : LocalDate.parse(exp));
+
+                // Update via Server (re-add product in simple version)
+                server.addProduct(selected.getName(), selected.getQuantity(), selected.getPrice(), selected.getSupplier(), selected.getExpiryDate());
+                loadProducts();
+            }
+            return null;
+        });
+
+        dialog.showAndWait();
+    }
+
+    // ===== Delete Product =====
+    private void deleteSelectedProduct() {
+        Product selected = productTable.getSelectionModel().getSelectedItem();
+        if (selected == null) {
+            showAlert("Select a product to delete!");
+            return;
+        }
+
+        Alert confirm = new Alert(Alert.AlertType.CONFIRMATION);
+        confirm.setHeaderText(null);
+        confirm.setContentText("Are you sure you want to delete: " + selected.getName() + "?");
+        confirm.showAndWait().ifPresent(res -> {
+            if (res == ButtonType.OK) {
+                server.viewProducts().remove(selected);
+                loadProducts();
+            }
+        });
+    }
+
+    // ===== Low Stock Alerts =====
+    private void showLowStockAlerts() {
+        StringBuilder sb = new StringBuilder();
+        for (Product p : server.viewProducts()) {
+            if (p.getQuantity() <= 5) sb.append("⚠ Low Stock: ").append(p).append("\n");
+        }
+        showAlert(sb.length() == 0 ? "All stocks are sufficient." : sb.toString());
+    }
+
+    // ===== Expiry Alerts =====
+    private void showExpiryAlerts() {
+        StringBuilder sb = new StringBuilder();
+        LocalDate today = LocalDate.now();
+        for (Product p : server.viewProducts()) {
+            if (p.getExpiryDate() != null && !p.getExpiryDate().isAfter(today.plusDays(7))) {
+                sb.append("⚠ Expiry Alert (<=7 days): ").append(p).append("\n");
+            }
+        }
+        showAlert(sb.length() == 0 ? "No products expiring soon." : sb.toString());
+    }
+
+    // ===== Utility Alert =====
+    private void showAlert(String msg) {
+        Alert alert = new Alert(Alert.AlertType.INFORMATION);
+        alert.setHeaderText(null);
+        alert.setContentText(msg);
+        alert.showAndWait();
+    }
+}
